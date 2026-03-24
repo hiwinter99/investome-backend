@@ -104,7 +104,8 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 삭제할 수 있습니다.");
         }
 
-
+        boardPostLikeRepository.deleteAllByPost_Id(postId);
+        boardCommentRepository.deleteAllByPost_Id(postId);
         boardPostRepository.delete(post);
     }
 
@@ -160,8 +161,7 @@ public class BoardService {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
 
-        var existing = boardPostLikeRepository.findByPostIdAndUserId(postId, userId);
-        post.setLikes(boardPostLikeRepository.countByPostId(postId));
+        var existing = boardPostLikeRepository.findByPost_IdAndUserId(postId, userId);
 
         if (existing.isPresent()) {
             boardPostLikeRepository.delete(existing.get());
@@ -172,6 +172,7 @@ public class BoardService {
             boardPostLikeRepository.save(like);
         }
 
+        post.setLikes(boardPostLikeRepository.countByPost_Id(postId));
 
         BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
@@ -182,7 +183,7 @@ public class BoardService {
     private BoardPostResponse toResponse(BoardPost post, Long no, Long currentUserId) {
         boolean mine = currentUserId != null && currentUserId.equals(post.getAuthorId());
         boolean likedByMe = currentUserId != null &&
-        boardPostLikeRepository.findByPost_IdAndUserId(post.getId(), currentUserId).isPresent();
+                boardPostLikeRepository.findByPost_IdAndUserId(post.getId(), currentUserId).isPresent();
 
         List<BoardCommentResponse> commentResponses = post.getComments().stream()
                 .map(c -> new BoardCommentResponse(
