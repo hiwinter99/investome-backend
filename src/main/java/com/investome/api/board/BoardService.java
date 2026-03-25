@@ -129,10 +129,10 @@ public class BoardService {
 
         boardCommentRepository.save(comment);
 
-        BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+        // 현재 영속성 컨텍스트 안의 post.comments도 즉시 최신 상태로 맞춰줌
+        post.getComments().add(comment);
 
-        return toResponse(refreshed, refreshed.getId(), userId);
+        return toResponse(post, post.getId(), userId);
     }
 
     @Transactional
@@ -148,12 +148,14 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 댓글만 삭제할 수 있습니다.");
         }
 
+        BoardPost post = comment.getPost();
+
         boardCommentRepository.delete(comment);
 
-        BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+        // 현재 post.comments 컬렉션에서도 바로 제거
+        post.getComments().removeIf(c -> c.getId().equals(commentId));
 
-        return toResponse(refreshed, refreshed.getId(), userId);
+        return toResponse(post, post.getId(), userId);
     }
 
     @Transactional
