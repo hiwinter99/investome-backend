@@ -27,7 +27,7 @@ public class BoardService {
 
         return posts.stream()
                 .sorted(Comparator.comparing(BoardPost::getId).reversed())
-                .map(post -> toResponse(post, seq.getAndDecrement(), currentUserId))
+                .map(post -> toListResponse(post, seq.getAndDecrement(), currentUserId))
                 .toList();
     }
 
@@ -209,13 +209,37 @@ public class BoardService {
                 post.getImageData(),
                 post.getImageName(),
                 post.getViews() == null ? 0L : post.getViews(),
-                boardPostLikeRepository.countByPost_Id(post.getId()),
+                post.getLikes() == null ? 0L : post.getLikes(),
                 (long) commentResponses.size(),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
                 mine,
                 likedByMe,
                 commentResponses
+        );
+    }
+
+    private BoardPostResponse toListResponse(BoardPost post, Long no, Long currentUserId) {
+        boolean mine = currentUserId != null && currentUserId.equals(post.getAuthorId());
+
+        return new BoardPostResponse(
+                post.getId(),
+                no,
+                post.getCategory(),
+                post.getTitle(),
+                post.getContent(),
+                post.getAuthorId(),
+                post.getAuthorNickname(),
+                post.getImageData(),
+                post.getImageName(),
+                post.getViews() == null ? 0L : post.getViews(),
+                post.getLikes() == null ? 0L : post.getLikes(),
+                (long) post.getComments().size(),
+                post.getCreatedAt(),
+                post.getUpdatedAt(),
+                mine,
+                false,
+                List.of()
         );
     }
 
