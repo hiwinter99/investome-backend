@@ -5,6 +5,7 @@ import com.investome.api.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Comparator;
@@ -26,25 +27,23 @@ public class BoardService {
 
         return posts.stream()
                 .sorted(Comparator.comparing(BoardPost::getId).reversed())
-                .map(post -> toResponse(post, seq.getAndDecrement(), currentUserId))
+                .map(post -> toListResponse(post, seq.getAndDecrement(), currentUserId))
                 .toList();
     }
 
+    @Transactional
     public BoardPostResponse getPost(Long postId, boolean increaseView, Long currentUserId) {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
 
         if (increaseView) {
             post.setViews((post.getViews() == null ? 0L : post.getViews()) + 1);
-            boardPostRepository.save(post);
         }
 
-        BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
-
-        return toResponse(refreshed, refreshed.getId(), currentUserId);
+        return toResponse(post, post.getId(), currentUserId);
     }
 
+    @Transactional
     public BoardPostResponse createPost(Long userId, BoardCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
@@ -70,6 +69,7 @@ public class BoardService {
         return toResponse(saved, saved.getId(), userId);
     }
 
+    @Transactional
     public BoardPostResponse updatePost(Long userId, Long postId, BoardCreateRequest request) {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
@@ -92,10 +92,10 @@ public class BoardService {
         post.setImageData(blankToNull(request.getImageData()));
         post.setImageName(blankToNull(request.getImageName()));
 
-        BoardPost saved = boardPostRepository.save(post);
-        return toResponse(saved, saved.getId(), userId);
+        return toResponse(post, post.getId(), userId);
     }
 
+    @Transactional
     public void deletePost(Long userId, Long postId) {
         BoardPost post = boardPostRepository.findById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
@@ -104,9 +104,12 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 삭제할 수 있습니다.");
         }
 
+        boardPostLikeRepository.deleteAllByPost_Id(postId);
+        boardCommentRepository.deleteAllByPost_Id(postId);
         boardPostRepository.delete(post);
     }
 
+    @Transactional
     public BoardPostResponse addComment(Long userId, Long postId, BoardCommentCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
@@ -126,12 +129,13 @@ public class BoardService {
 
         boardCommentRepository.save(comment);
 
-        BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+        // 현재 영속성 컨텍스트 안의 post.comments도 즉시 최신 상태로 맞춰줌
+        post.getComments().add(comment);
 
-        return toResponse(refreshed, refreshed.getId(), userId);
+        return toResponse(post, post.getId(), userId);
     }
 
+    @Transactional
     public BoardPostResponse deleteComment(Long userId, Long postId, Long commentId) {
         BoardComment comment = boardCommentRepository.findById(commentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글이 없습니다."));
@@ -144,19 +148,22 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 댓글만 삭제할 수 있습니다.");
         }
 
+        BoardPost post = comment.getPost();
+
         boardCommentRepository.delete(comment);
 
-        BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+        // 현재 post.comments 컬렉션에서도 바로 제거
+        post.getComments().removeIf(c -> c.getId().equals(commentId));
 
-        return toResponse(refreshed, refreshed.getId(), userId);
+        return toResponse(post, post.getId(), userId);
     }
 
+    @Transactional
     public BoardPostResponse toggleLike(Long userId, Long postId) {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
 
-        var existing = boardPostLikeRepository.findByPostIdAndUserId(postId, userId);
+        var existing = boardPostLikeRepository.findByPost_IdAndUserId(postId, userId);
 
         if (existing.isPresent()) {
             boardPostLikeRepository.delete(existing.get());
@@ -167,8 +174,7 @@ public class BoardService {
             boardPostLikeRepository.save(like);
         }
 
-        post.setLikes(boardPostLikeRepository.countByPostId(postId));
-        boardPostRepository.save(post);
+        post.setLikes(boardPostLikeRepository.countByPost_Id(postId));
 
         BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
@@ -179,7 +185,7 @@ public class BoardService {
     private BoardPostResponse toResponse(BoardPost post, Long no, Long currentUserId) {
         boolean mine = currentUserId != null && currentUserId.equals(post.getAuthorId());
         boolean likedByMe = currentUserId != null &&
-                boardPostLikeRepository.findByPostIdAndUserId(post.getId(), currentUserId).isPresent();
+                boardPostLikeRepository.findByPost_IdAndUserId(post.getId(), currentUserId).isPresent();
 
         List<BoardCommentResponse> commentResponses = post.getComments().stream()
                 .map(c -> new BoardCommentResponse(
@@ -203,13 +209,37 @@ public class BoardService {
                 post.getImageData(),
                 post.getImageName(),
                 post.getViews() == null ? 0L : post.getViews(),
-                boardPostLikeRepository.countByPostId(post.getId()),
+                post.getLikes() == null ? 0L : post.getLikes(),
                 (long) commentResponses.size(),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
                 mine,
                 likedByMe,
                 commentResponses
+        );
+    }
+
+    private BoardPostResponse toListResponse(BoardPost post, Long no, Long currentUserId) {
+        boolean mine = currentUserId != null && currentUserId.equals(post.getAuthorId());
+
+        return new BoardPostResponse(
+                post.getId(),
+                no,
+                post.getCategory(),
+                post.getTitle(),
+                post.getContent(),
+                post.getAuthorId(),
+                post.getAuthorNickname(),
+                post.getImageData(),
+                post.getImageName(),
+                post.getViews() == null ? 0L : post.getViews(),
+                post.getLikes() == null ? 0L : post.getLikes(),
+                (long) post.getComments().size(),
+                post.getCreatedAt(),
+                post.getUpdatedAt(),
+                mine,
+                false,
+                List.of()
         );
     }
 
