@@ -26,12 +26,13 @@ public class NewsController {
     public Map<String, Object> getNews(
             @RequestParam(defaultValue = "all") String category,
             @RequestParam(defaultValue = "12") int limit,
+            @RequestParam(required = false) String topic,
             @RequestParam(required = false) String q
     ) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            String keyword = resolveKeyword(category, q);
+            String keyword = resolveKeyword(category, topic, q);
             String rssUrl = "https://news.google.com/rss/search?q="
                     + URLEncoder.encode(keyword, StandardCharsets.UTF_8)
                     + "&hl=ko&gl=KR&ceid=KR:ko";
@@ -84,9 +85,13 @@ public class NewsController {
         }
     }
 
-    private String resolveKeyword(String category, String q) {
+    private String resolveKeyword(String category, String topic, String q) {
         if (q != null && !q.trim().isEmpty()) {
             return q.trim();
+        }
+
+        if (topic != null && !topic.trim().isEmpty()) {
+            return topic.trim();
         }
 
         return switch (category == null ? "all" : category.trim().toLowerCase()) {

@@ -21,7 +21,8 @@ jwt:
   secret: ${JWT_SECRET:change-this-jwt-secret-to-a-long-random-string}
   access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:86400000}
 
-KIS_APP_KEY: ${KIS_APP_KEY:}
-KIS_APP_SECRET: ${KIS_APP_SECRET:}
-KIS_BASE_URL: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
-KIS_MARKET_CAP_TR_ID: ${KIS_MARKET_CAP_TR_ID:FHPST01740000}
+kis:
+  app-key: ${KIS_APP_KEY:}
+  app-secret: ${KIS_APP_SECRET:}
+  base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
+  market-cap-tr-id: ${KIS_MARKET_CAP_TR_ID:FHPST01740000}
