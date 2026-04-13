@@ -26,16 +26,16 @@ public class StockMarketService {
     private static final long FX_TTL_MS = Duration.ofSeconds(20).toMillis();
     private static final long KIS_TOKEN_TTL_MS = Duration.ofHours(23).toMillis();
 
-    @Value("${KIS_APP_KEY:}")
+    @Value("${kis.app-key:}")
     private String kisAppKey;
 
-    @Value("${KIS_APP_SECRET:}")
+    @Value("${kis.app-secret:}")
     private String kisAppSecret;
 
-    @Value("${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}")
+    @Value("${kis.base-url:https://openapi.koreainvestment.com:9443}")
     private String kisBaseUrl;
 
-    @Value("${KIS_MARKET_CAP_TR_ID:FHPST01740000}")
+    @Value("${kis.market-cap-tr-id:FHPST01740000}")
     private String kisMarketCapTrId;
 
     private final Map<String, CacheBucket> cache = new ConcurrentHashMap<>();

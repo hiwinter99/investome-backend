@@ -26,12 +26,13 @@ public class NewsController {
     public Map<String, Object> getNews(
             @RequestParam(defaultValue = "all") String category,
             @RequestParam(defaultValue = "12") int limit,
+            @RequestParam(required = false) String topic,
             @RequestParam(required = false) String q
     ) {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            String keyword = resolveKeyword(category, q);
+            String keyword = resolveKeyword(category, topic, q);
             String rssUrl = "https://news.google.com/rss/search?q="
                     + URLEncoder.encode(keyword, StandardCharsets.UTF_8)
                     + "&hl=ko&gl=KR&ceid=KR:ko";
@@ -84,17 +85,21 @@ public class NewsController {
         }
     }
 
-    private String resolveKeyword(String category, String q) {
+    private String resolveKeyword(String category, String topic, String q) {
         if (q != null && !q.trim().isEmpty()) {
             return q.trim();
         }
 
+        if (topic != null && !topic.trim().isEmpty()) {
+            return topic.trim();
+        }
+
         return switch (category == null ? "all" : category.trim().toLowerCase()) {
-            case "crypto" -> "가상자산 OR 비트코인 OR 이더리움 OR 코인";
-            case "domestic", "korea", "kr", "stocks" -> "국내증시 OR 코스피 OR 코스닥 OR 한국증시";
-            case "global", "overseas", "us", "world" -> "해외증시 OR 미국증시 OR 뉴욕증시 OR 나스닥 OR 다우 OR S&P500";
-            case "all" -> "경제 OR 증시 OR 코인";
-            default -> "경제 OR 증시 OR 코인";
+            case "crypto" -> "crypto OR bitcoin OR ethereum OR altcoin";
+            case "domestic", "korea", "kr", "stocks" -> "KOSPI OR KOSDAQ OR Korea stock market";
+            case "global", "overseas", "us", "world" -> "NASDAQ OR S&P 500 OR Dow Jones OR US stock market";
+            case "all" -> "economy OR stock market OR crypto";
+            default -> "economy OR stock market OR crypto";
         };
     }
 
@@ -132,7 +137,9 @@ public class NewsController {
             int s = text.indexOf(start);
             int e = text.indexOf(end);
 
-            if (s == -1 || e == -1) return "";
+            if (s == -1 || e == -1) {
+                return "";
+            }
 
             return text.substring(s + start.length(), e);
         } catch (Exception e) {
@@ -141,7 +148,9 @@ public class NewsController {
     }
 
     private String cleanText(String value) {
-        if (value == null) return "";
+        if (value == null) {
+            return "";
+        }
         return value
                 .replace("&quot;", "\"")
                 .replace("&apos;", "'")
@@ -156,7 +165,9 @@ public class NewsController {
 
     private String decodeGoogleNewsLink(String link) {
         try {
-            if (link == null || link.isBlank()) return "";
+            if (link == null || link.isBlank()) {
+                return "";
+            }
             String decoded = URLDecoder.decode(link, StandardCharsets.UTF_8);
             int idx = decoded.indexOf("url=");
             if (idx >= 0) {
