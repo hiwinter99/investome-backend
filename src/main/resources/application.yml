@@ -1,4 +1,4 @@
-server:
+﻿server:
   port: ${PORT:8080}
 
 spring:
@@ -18,7 +18,7 @@ spring:
     time-zone: Asia/Seoul
 
 jwt:
-  secret: ${JWT_SECRET:change-this-jwt-secret-to-a-long-random-string}
+  secret: ${JWT_SECRET:}
   access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:86400000}
 
 kis:
@@ -26,3 +26,4 @@ kis:
   app-secret: ${KIS_APP_SECRET:}
   base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
   market-cap-tr-id: ${KIS_MARKET_CAP_TR_ID:FHPST01740000}
+
