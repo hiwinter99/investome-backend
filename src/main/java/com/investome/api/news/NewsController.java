@@ -95,11 +95,13 @@ public class NewsController {
         }
 
         return switch (category == null ? "all" : category.trim().toLowerCase()) {
-            case "crypto" -> "crypto OR bitcoin OR ethereum OR altcoin";
-            case "domestic", "korea", "kr", "stocks" -> "KOSPI OR KOSDAQ OR Korea stock market";
-            case "global", "overseas", "us", "world" -> "NASDAQ OR S&P 500 OR Dow Jones OR US stock market";
-            case "all" -> "economy OR stock market OR crypto";
-            default -> "economy OR stock market OR crypto";
+            case "crypto" -> "\"비트코인\" OR \"이더리움\" OR \"가상자산\" OR \"암호화폐\"";
+            case "domestic", "korea", "kr", "stocks" ->
+                    "\"코스피\" OR \"코스닥\" OR \"국내증시\" OR \"한국 증시\" -Taiwan -Pakistan -UAE";
+            case "global", "overseas", "us", "world" ->
+                    "\"미국 증시\" OR 나스닥 OR \"S&P 500\" OR 다우존스";
+            case "all" -> "\"경제\" OR \"증시\" OR \"비트코인\" OR \"환율\"";
+            default -> "\"경제\" OR \"증시\" OR \"비트코인\" OR \"환율\"";
         };
     }
 
@@ -110,7 +112,7 @@ public class NewsController {
         for (int i = 1; i < chunks.length; i++) {
             String item = chunks[i];
 
-            String title = cleanText(extract(item, "title"));
+            String title = cleanTitle(cleanText(extract(item, "title")), cleanText(extract(item, "source")));
             String link = decodeGoogleNewsLink(cleanText(extract(item, "link")));
             String pubDate = cleanText(extract(item, "pubDate"));
             String description = cleanText(extract(item, "description"));
@@ -161,6 +163,24 @@ public class NewsController {
                 .replace("]]>", "")
                 .replaceAll("<[^>]*>", "")
                 .trim();
+    }
+
+    private String cleanTitle(String title, String source) {
+        if (title == null) {
+            return "";
+        }
+
+        String normalized = title.trim();
+        if (source == null || source.isBlank()) {
+            return normalized;
+        }
+
+        String suffix = " - " + source.trim();
+        if (normalized.endsWith(suffix)) {
+            return normalized.substring(0, normalized.length() - suffix.length()).trim();
+        }
+
+        return normalized;
     }
 
     private String decodeGoogleNewsLink(String link) {
