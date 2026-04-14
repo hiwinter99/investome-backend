@@ -96,7 +96,7 @@ public class NewsController {
                     "\"코스피\" OR \"코스닥\" OR \"국내증시\" OR \"한국 증시\" OR \"원달러 환율\"",
                     "\"미국 증시\" OR 나스닥 OR \"S&P 500\" OR 다우존스 OR 연준",
                     "\"비트코인\" OR \"이더리움\" OR \"가상자산\" OR \"암호화폐\"",
-                    "\"환율\" OR \"국제유가\" OR 인플레이션 OR 금리"
+                    "\"원달러 환율\" OR \"국제유가\" OR 인플레이션 OR 기준금리"
             );
             default -> List.of("\"경제\" OR \"증시\" OR \"비트코인\" OR \"환율\"");
         };
@@ -153,7 +153,7 @@ public class NewsController {
             }
         }
 
-        return filtered.isEmpty() ? items : filtered;
+        return filtered;
     }
 
     private String buildSearchText(Map<String, String> item) {
