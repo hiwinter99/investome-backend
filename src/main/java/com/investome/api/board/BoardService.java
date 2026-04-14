@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -22,11 +21,10 @@ public class BoardService {
     private final UserRepository userRepository;
 
     public List<BoardPostResponse> getPosts(Long currentUserId) {
-        List<BoardPost> posts = boardPostRepository.findAll();
+        List<BoardPostListRow> posts = boardPostRepository.findPostListRows();
         AtomicLong seq = new AtomicLong(posts.size());
 
         return posts.stream()
-                .sorted(Comparator.comparing(BoardPost::getId).reversed())
                 .map(post -> toListResponse(post, seq.getAndDecrement(), currentUserId))
                 .toList();
     }
@@ -206,6 +204,7 @@ public class BoardService {
                 post.getContent(),
                 post.getAuthorId(),
                 post.getAuthorNickname(),
+                hasImage(post.getImageData()),
                 post.getImageData(),
                 post.getImageName(),
                 post.getViews() == null ? 0L : post.getViews(),
@@ -219,7 +218,7 @@ public class BoardService {
         );
     }
 
-    private BoardPostResponse toListResponse(BoardPost post, Long no, Long currentUserId) {
+    private BoardPostResponse toListResponse(BoardPostListRow post, Long no, Long currentUserId) {
         boolean mine = currentUserId != null && currentUserId.equals(post.getAuthorId());
 
         return new BoardPostResponse(
@@ -230,17 +229,22 @@ public class BoardService {
                 post.getContent(),
                 post.getAuthorId(),
                 post.getAuthorNickname(),
-                post.getImageData(),
-                post.getImageName(),
+                post.isHasImage(),
+                null,
+                null,
                 post.getViews() == null ? 0L : post.getViews(),
                 post.getLikes() == null ? 0L : post.getLikes(),
-                (long) post.getComments().size(),
+                post.getCommentCount() == null ? 0L : post.getCommentCount(),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
                 mine,
                 false,
                 List.of()
         );
+    }
+
+    private boolean hasImage(String imageData) {
+        return imageData != null && !imageData.isBlank();
     }
 
     private String blankToNull(String value) {

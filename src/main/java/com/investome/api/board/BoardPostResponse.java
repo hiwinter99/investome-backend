@@ -16,6 +16,7 @@ public class BoardPostResponse {
     private String content;
     private Long authorId;
     private String author;
+    private boolean hasImage;
     private String imageData;
     private String imageName;
     private Long views;
