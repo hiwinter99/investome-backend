@@ -469,11 +469,12 @@ public class StockRankingSnapshotService {
                 + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
                 + "?interval=1d&range=5d&includePrePost=false";
 
-        JsonNode meta = http.fetchJsonNode(url)
+        JsonNode result = http.fetchJsonNode(url)
                 .path("chart")
                 .path("result")
-                .path(0)
-                .path("meta");
+                .path(0);
+
+        JsonNode meta = result.path("meta");
 
         if (meta.isMissingNode() || meta.isNull()) {
             return new YahooChartMeta(null, null);
@@ -481,11 +482,13 @@ public class StockRankingSnapshotService {
 
         Double price = firstNonNull(
                 http.toDouble(meta.path("regularMarketPrice")),
+                extractLastClose(result),
                 http.toDouble(meta.path("previousClose")),
                 http.toDouble(meta.path("chartPreviousClose"))
         );
 
         Double previousClose = firstNonNull(
+                extractPreviousClose(result),
                 http.toDouble(meta.path("previousClose")),
                 http.toDouble(meta.path("chartPreviousClose"))
         );
@@ -496,6 +499,43 @@ public class StockRankingSnapshotService {
         }
 
         return new YahooChartMeta(price, changePct);
+    }
+
+    private Double extractLastClose(JsonNode result) {
+        JsonNode closes = result.path("indicators").path("quote").path(0).path("close");
+        if (!closes.isArray()) {
+            return null;
+        }
+
+        for (int i = closes.size() - 1; i >= 0; i -= 1) {
+            Double value = http.toDouble(closes.path(i));
+            if (value != null) {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private Double extractPreviousClose(JsonNode result) {
+        JsonNode closes = result.path("indicators").path("quote").path(0).path("close");
+        if (!closes.isArray()) {
+            return null;
+        }
+
+        int found = 0;
+        for (int i = closes.size() - 1; i >= 0; i -= 1) {
+            Double value = http.toDouble(closes.path(i));
+            if (value == null) {
+                continue;
+            }
+            found += 1;
+            if (found == 2) {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private List<JsonNode> fetchKisMarketCapTop30() throws Exception {
