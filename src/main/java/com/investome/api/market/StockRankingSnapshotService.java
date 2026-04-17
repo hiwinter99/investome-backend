@@ -188,6 +188,12 @@ public class StockRankingSnapshotService {
             );
             Double changePct = quote == null ? null : http.toDouble(quote.path("regularMarketChangePercent"));
 
+            if (price == null) {
+                YahooChartMeta fallback = fetchYahooChartMeta(snapshotItem.getSymbol() + ".KS");
+                price = fallback.price();
+                changePct = changePct != null ? changePct : fallback.changePct();
+            }
+
             items.add(MarketItemResponse.builder()
                     .rank(snapshotItem.getRankOrder())
                     .market("KOSPI")
@@ -229,6 +235,12 @@ public class StockRankingSnapshotService {
                     http.toDouble(quote.path("postMarketChangePercent")),
                     http.toDouble(quote.path("preMarketChangePercent"))
             );
+
+            if (priceUsd == null) {
+                YahooChartMeta fallback = fetchYahooChartMeta(snapshotItem.getSymbol());
+                priceUsd = fallback.price();
+                changePct = changePct != null ? changePct : fallback.changePct();
+            }
 
             items.add(MarketItemResponse.builder()
                     .rank(snapshotItem.getRankOrder())
@@ -382,6 +394,40 @@ public class StockRankingSnapshotService {
             result.forEach(rows::add);
         }
         return rows;
+    }
+
+    private YahooChartMeta fetchYahooChartMeta(String symbol) throws Exception {
+        String url = "https://query1.finance.yahoo.com/v8/finance/chart/"
+                + URLEncoder.encode(symbol, StandardCharsets.UTF_8)
+                + "?interval=1d&range=5d&includePrePost=false";
+
+        JsonNode meta = http.fetchJsonNode(url)
+                .path("chart")
+                .path("result")
+                .path(0)
+                .path("meta");
+
+        if (meta.isMissingNode() || meta.isNull()) {
+            return new YahooChartMeta(null, null);
+        }
+
+        Double price = firstNonNull(
+                http.toDouble(meta.path("regularMarketPrice")),
+                http.toDouble(meta.path("previousClose")),
+                http.toDouble(meta.path("chartPreviousClose"))
+        );
+
+        Double previousClose = firstNonNull(
+                http.toDouble(meta.path("previousClose")),
+                http.toDouble(meta.path("chartPreviousClose"))
+        );
+
+        Double changePct = null;
+        if (price != null && previousClose != null && previousClose != 0) {
+            changePct = ((price - previousClose) / previousClose) * 100.0;
+        }
+
+        return new YahooChartMeta(price, changePct);
     }
 
     private List<JsonNode> fetchKisMarketCapTop30() throws Exception {
@@ -741,5 +787,8 @@ public class StockRankingSnapshotService {
     }
 
     private record StockNameOverride(String name, String displayNameEN) {
+    }
+
+    private record YahooChartMeta(Double price, Double changePct) {
     }
 }
