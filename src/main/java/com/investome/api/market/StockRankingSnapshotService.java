@@ -29,6 +29,38 @@ public class StockRankingSnapshotService {
     private static final long PRICE_TTL_MS = Duration.ofSeconds(20).toMillis();
     private static final long FX_TTL_MS = Duration.ofSeconds(20).toMillis();
     private static final long KIS_TOKEN_TTL_MS = Duration.ofHours(23).toMillis();
+    private static final List<NasdaqSnapshotBase> NASDAQ_FIXED_UNIVERSE = List.of(
+            new NasdaqSnapshotBase("AAPL", "Apple Inc.", "apple.com"),
+            new NasdaqSnapshotBase("MSFT", "Microsoft Corporation", "microsoft.com"),
+            new NasdaqSnapshotBase("NVDA", "NVIDIA Corporation", "nvidia.com"),
+            new NasdaqSnapshotBase("AMZN", "Amazon.com, Inc.", "amazon.com"),
+            new NasdaqSnapshotBase("GOOGL", "Alphabet Inc. Class A", "google.com"),
+            new NasdaqSnapshotBase("GOOG", "Alphabet Inc. Class C", "google.com"),
+            new NasdaqSnapshotBase("META", "Meta Platforms, Inc.", "meta.com"),
+            new NasdaqSnapshotBase("AVGO", "Broadcom Inc.", "broadcom.com"),
+            new NasdaqSnapshotBase("TSLA", "Tesla, Inc.", "tesla.com"),
+            new NasdaqSnapshotBase("COST", "Costco Wholesale Corporation", "costco.com"),
+            new NasdaqSnapshotBase("NFLX", "Netflix, Inc.", "netflix.com"),
+            new NasdaqSnapshotBase("ASML", "ASML Holding N.V.", "asml.com"),
+            new NasdaqSnapshotBase("TMUS", "T-Mobile US, Inc.", "t-mobile.com"),
+            new NasdaqSnapshotBase("CSCO", "Cisco Systems, Inc.", "cisco.com"),
+            new NasdaqSnapshotBase("AMD", "Advanced Micro Devices, Inc.", "amd.com"),
+            new NasdaqSnapshotBase("PEP", "PepsiCo, Inc.", "pepsico.com"),
+            new NasdaqSnapshotBase("LIN", "Linde plc", "linde.com"),
+            new NasdaqSnapshotBase("INTU", "Intuit Inc.", "intuit.com"),
+            new NasdaqSnapshotBase("QCOM", "QUALCOMM Incorporated", "qualcomm.com"),
+            new NasdaqSnapshotBase("AMGN", "Amgen Inc.", "amgen.com"),
+            new NasdaqSnapshotBase("TXN", "Texas Instruments Incorporated", "ti.com"),
+            new NasdaqSnapshotBase("INTC", "Intel Corporation", "intel.com"),
+            new NasdaqSnapshotBase("HON", "Honeywell International Inc.", "honeywell.com"),
+            new NasdaqSnapshotBase("AMAT", "Applied Materials, Inc.", "appliedmaterials.com"),
+            new NasdaqSnapshotBase("BKNG", "Booking Holdings Inc.", "bookingholdings.com"),
+            new NasdaqSnapshotBase("ISRG", "Intuitive Surgical, Inc.", "intuitive.com"),
+            new NasdaqSnapshotBase("ADBE", "Adobe Inc.", "adobe.com"),
+            new NasdaqSnapshotBase("MU", "Micron Technology, Inc.", "micron.com"),
+            new NasdaqSnapshotBase("ADP", "Automatic Data Processing, Inc.", "adp.com"),
+            new NasdaqSnapshotBase("LRCX", "Lam Research Corporation", "lamresearch.com")
+    );
 
     private final MarketHttpClient http;
     private final MarketRankSnapshotItemRepository snapshotItemRepository;
@@ -315,10 +347,18 @@ public class StockRankingSnapshotService {
     }
 
     private List<MarketItemResponse> buildNasdaqRankSnapshot() throws Exception {
-        if (fmpApiKey == null || fmpApiKey.isBlank()) {
-            throw new IllegalStateException("FMP API key is missing");
+        if (fmpApiKey != null && !fmpApiKey.isBlank()) {
+            try {
+                return buildNasdaqRankSnapshotFromFmp();
+            } catch (Exception e) {
+                log.warn("FMP NASDAQ screener unavailable, falling back to fixed large-cap universe: {}", e.getMessage());
+            }
         }
 
+        return buildNasdaqFixedUniverseSnapshot();
+    }
+
+    private List<MarketItemResponse> buildNasdaqRankSnapshotFromFmp() throws Exception {
         double usdKrw = getUsdKrwCached();
         String url = "https://financialmodelingprep.com/stable/company-screener"
                 + "?exchange=NASDAQ"
@@ -391,6 +431,26 @@ public class StockRankingSnapshotService {
         }
 
         return top30;
+    }
+
+    private List<MarketItemResponse> buildNasdaqFixedUniverseSnapshot() {
+        List<MarketItemResponse> items = new ArrayList<>();
+        for (int i = 0; i < NASDAQ_FIXED_UNIVERSE.size(); i += 1) {
+            NasdaqSnapshotBase item = NASDAQ_FIXED_UNIVERSE.get(i);
+            items.add(MarketItemResponse.builder()
+                    .rank(i + 1)
+                    .market("NASDAQ")
+                    .name(item.name())
+                    .displayNameEN(item.name())
+                    .symbol(item.symbol())
+                    .iconUrl(buildLogo(item.domain()))
+                    .coinId("")
+                    .capKRW(null)
+                    .priceKRW(null)
+                    .changePct(null)
+                    .build());
+        }
+        return items;
     }
 
     private List<JsonNode> fetchYahooQuoteBatch(List<String> symbols) throws Exception {
@@ -798,5 +858,8 @@ public class StockRankingSnapshotService {
     }
 
     private record YahooChartMeta(Double price, Double changePct) {
+    }
+
+    private record NasdaqSnapshotBase(String symbol, String name, String domain) {
     }
 }
