@@ -7,4 +7,5 @@ import lombok.Setter;
 @Setter
 public class BoardCommentCreateRequest {
     private String content;
+    private Long parentCommentId;
 }

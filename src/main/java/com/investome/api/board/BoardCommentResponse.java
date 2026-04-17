@@ -13,5 +13,7 @@ public class BoardCommentResponse {
     private String author;
     private String content;
     private LocalDateTime createdAt;
+    private Long parentCommentId;
+    private int depth;
     private boolean mine;
 }

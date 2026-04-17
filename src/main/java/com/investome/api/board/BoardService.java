@@ -8,8 +8,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -46,20 +49,12 @@ public class BoardService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
 
-        if (request.getTitle() == null || request.getTitle().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "제목을 입력해 주세요.");
-        }
-
-        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내용을 입력해 주세요.");
-        }
-
         BoardPost post = new BoardPost();
         post.setAuthorId(user.getId());
         post.setAuthorNickname(user.getNickname());
-        post.setCategory(request.getCategory() == null || request.getCategory().isBlank() ? "free" : request.getCategory());
-        post.setTitle(request.getTitle().trim());
-        post.setContent(request.getContent().trim());
+        post.setCategory(normalizeCategory(request.getCategory()));
+        post.setTitle(normalizeRequired(request.getTitle(), "제목을 입력해주세요."));
+        post.setContent(normalizeRequired(request.getContent(), "내용을 입력해주세요."));
         post.setImageData(blankToNull(request.getImageData()));
         post.setImageName(blankToNull(request.getImageName()));
 
@@ -76,17 +71,9 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 수정할 수 있습니다.");
         }
 
-        if (request.getTitle() == null || request.getTitle().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "제목을 입력해 주세요.");
-        }
-
-        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "내용을 입력해 주세요.");
-        }
-
-        post.setCategory(request.getCategory() == null || request.getCategory().isBlank() ? "free" : request.getCategory());
-        post.setTitle(request.getTitle().trim());
-        post.setContent(request.getContent().trim());
+        post.setCategory(normalizeCategory(request.getCategory()));
+        post.setTitle(normalizeRequired(request.getTitle(), "제목을 입력해주세요."));
+        post.setContent(normalizeRequired(request.getContent(), "내용을 입력해주세요."));
         post.setImageData(blankToNull(request.getImageData()));
         post.setImageName(blankToNull(request.getImageName()));
 
@@ -112,10 +99,6 @@ public class BoardService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
 
-        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "댓글 내용을 입력해 주세요.");
-        }
-
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
 
@@ -123,12 +106,19 @@ public class BoardService {
         comment.setPost(post);
         comment.setAuthorId(user.getId());
         comment.setAuthorNickname(user.getNickname());
-        comment.setContent(request.getContent().trim());
+        comment.setContent(normalizeRequired(request.getContent(), "댓글 내용을 입력해주세요."));
 
-        boardCommentRepository.save(comment);
+        if (request.getParentCommentId() != null) {
+            BoardComment parent = post.getComments().stream()
+                    .filter(existing -> existing.getId().equals(request.getParentCommentId()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "답글 대상 댓글을 찾을 수 없습니다."));
 
-        // 현재 영속성 컨텍스트 안의 post.comments도 즉시 최신 상태로 맞춰줌
-        post.getComments().add(comment);
+            comment.setParentComment(parent.getParentComment() != null ? parent.getParentComment() : parent);
+        }
+
+        BoardComment saved = boardCommentRepository.save(comment);
+        post.getComments().add(saved);
 
         return toResponse(post, post.getId(), userId);
     }
@@ -146,12 +136,13 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 댓글만 삭제할 수 있습니다.");
         }
 
+        if (comment.getParentComment() == null && boardCommentRepository.existsByParentComment_Id(commentId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "답글이 있는 댓글은 삭제할 수 없습니다.");
+        }
+
         BoardPost post = comment.getPost();
-
         boardCommentRepository.delete(comment);
-
-        // 현재 post.comments 컬렉션에서도 바로 제거
-        post.getComments().removeIf(c -> c.getId().equals(commentId));
+        post.getComments().removeIf(existing -> existing.getId().equals(commentId));
 
         return toResponse(post, post.getId(), userId);
     }
@@ -161,16 +152,16 @@ public class BoardService {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
 
-        var existing = boardPostLikeRepository.findByPost_IdAndUserId(postId, userId);
-
-        if (existing.isPresent()) {
-            boardPostLikeRepository.delete(existing.get());
-        } else {
-            BoardPostLike like = new BoardPostLike();
-            like.setPost(post);
-            like.setUserId(userId);
-            boardPostLikeRepository.save(like);
-        }
+        boardPostLikeRepository.findByPost_IdAndUserId(postId, userId)
+                .ifPresentOrElse(
+                        boardPostLikeRepository::delete,
+                        () -> {
+                            BoardPostLike like = new BoardPostLike();
+                            like.setPost(post);
+                            like.setUserId(userId);
+                            boardPostLikeRepository.save(like);
+                        }
+                );
 
         post.setLikes(boardPostLikeRepository.countByPost_Id(postId));
 
@@ -185,15 +176,21 @@ public class BoardService {
         boolean likedByMe = currentUserId != null &&
                 boardPostLikeRepository.findByPost_IdAndUserId(post.getId(), currentUserId).isPresent();
 
-        List<BoardCommentResponse> commentResponses = post.getComments().stream()
-                .map(c -> new BoardCommentResponse(
-                        c.getId(),
-                        c.getAuthorId(),
-                        c.getAuthorNickname(),
-                        c.getContent(),
-                        c.getCreatedAt(),
-                        currentUserId != null && currentUserId.equals(c.getAuthorId())
-                ))
+        List<BoardCommentResponse> commentResponses = sortComments(post.getComments()).stream()
+                .map(comment -> {
+                    boolean isReply = comment.getParentComment() != null;
+
+                    return new BoardCommentResponse(
+                            comment.getId(),
+                            comment.getAuthorId(),
+                            comment.getAuthorNickname(),
+                            comment.getContent(),
+                            comment.getCreatedAt(),
+                            isReply ? comment.getParentComment().getId() : null,
+                            isReply ? 1 : 0,
+                            currentUserId != null && currentUserId.equals(comment.getAuthorId())
+                    );
+                })
                 .toList();
 
         return new BoardPostResponse(
@@ -243,8 +240,41 @@ public class BoardService {
         );
     }
 
+    private List<BoardComment> sortComments(List<BoardComment> comments) {
+        var repliesByParent = comments.stream()
+                .filter(comment -> comment.getParentComment() != null)
+                .collect(Collectors.groupingBy(comment -> comment.getParentComment().getId()));
+
+        return comments.stream()
+                .filter(comment -> comment.getParentComment() == null)
+                .sorted(Comparator.comparing(BoardComment::getCreatedAt).thenComparing(BoardComment::getId))
+                .flatMap(parent -> {
+                    List<BoardComment> replies = repliesByParent.getOrDefault(parent.getId(), List.of()).stream()
+                            .sorted(Comparator.comparing(BoardComment::getCreatedAt).thenComparing(BoardComment::getId))
+                            .toList();
+
+                    return Stream.concat(Stream.of(parent), replies.stream());
+                })
+                .toList();
+    }
+
     private boolean hasImage(String imageData) {
         return imageData != null && !imageData.isBlank();
+    }
+
+    private String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return "free";
+        }
+        return category.trim();
+    }
+
+    private String normalizeRequired(String value, String message) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
+        return normalized;
     }
 
     private String blankToNull(String value) {

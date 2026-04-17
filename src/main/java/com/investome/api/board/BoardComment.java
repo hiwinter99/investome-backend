@@ -20,6 +20,10 @@ public class BoardComment {
     @JoinColumn(name = "post_id")
     private BoardPost post;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_comment_id")
+    private BoardComment parentComment;
+
     @Column(nullable = false)
     private Long authorId;
 

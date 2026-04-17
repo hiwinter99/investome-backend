@@ -36,8 +36,7 @@ public class BoardController {
             @RequestBody BoardCreateRequest request,
             HttpServletRequest httpRequest
     ) {
-        Long userId = extractUserId(httpRequest);
-        return boardService.createPost(userId, request);
+        return boardService.createPost(extractUserId(httpRequest), request);
     }
 
     @PutMapping("/posts/{postId}")
@@ -46,8 +45,7 @@ public class BoardController {
             @RequestBody BoardCreateRequest request,
             HttpServletRequest httpRequest
     ) {
-        Long userId = extractUserId(httpRequest);
-        return boardService.updatePost(userId, postId, request);
+        return boardService.updatePost(extractUserId(httpRequest), postId, request);
     }
 
     @DeleteMapping("/posts/{postId}")
@@ -55,8 +53,7 @@ public class BoardController {
             @PathVariable Long postId,
             HttpServletRequest httpRequest
     ) {
-        Long userId = extractUserId(httpRequest);
-        boardService.deletePost(userId, postId);
+        boardService.deletePost(extractUserId(httpRequest), postId);
     }
 
     @PostMapping("/posts/{postId}/comments")
@@ -65,8 +62,7 @@ public class BoardController {
             @RequestBody BoardCommentCreateRequest request,
             HttpServletRequest httpRequest
     ) {
-        Long userId = extractUserId(httpRequest);
-        return boardService.addComment(userId, postId, request);
+        return boardService.addComment(extractUserId(httpRequest), postId, request);
     }
 
     @DeleteMapping("/posts/{postId}/comments/{commentId}")
@@ -75,8 +71,7 @@ public class BoardController {
             @PathVariable Long commentId,
             HttpServletRequest httpRequest
     ) {
-        Long userId = extractUserId(httpRequest);
-        return boardService.deleteComment(userId, postId, commentId);
+        return boardService.deleteComment(extractUserId(httpRequest), postId, commentId);
     }
 
     @PostMapping("/posts/{postId}/like")
@@ -84,8 +79,7 @@ public class BoardController {
             @PathVariable Long postId,
             HttpServletRequest httpRequest
     ) {
-        Long userId = extractUserId(httpRequest);
-        return boardService.toggleLike(userId, postId);
+        return boardService.toggleLike(extractUserId(httpRequest), postId);
     }
 
     private Long extractUserId(HttpServletRequest request) {
@@ -96,8 +90,7 @@ public class BoardController {
         }
 
         try {
-            String token = auth.substring(7);
-            return jwtTokenProvider.getUserId(token);
+            return jwtTokenProvider.getUserId(auth.substring(7));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다.");
         }
@@ -111,8 +104,7 @@ public class BoardController {
         }
 
         try {
-            String token = auth.substring(7);
-            return jwtTokenProvider.getUserId(token);
+            return jwtTokenProvider.getUserId(auth.substring(7));
         } catch (Exception e) {
             return null;
         }
