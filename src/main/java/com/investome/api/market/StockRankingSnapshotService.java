@@ -174,8 +174,12 @@ public class StockRankingSnapshotService {
                 .toList();
 
         Map<String, JsonNode> quoteMap = new HashMap<>();
-        for (JsonNode quote : fetchYahooQuoteBatch(yahooSymbols)) {
-            quoteMap.put(quote.path("symbol").asText("").toUpperCase(Locale.ROOT), quote);
+        try {
+            for (JsonNode quote : fetchYahooQuoteBatch(yahooSymbols)) {
+                quoteMap.put(quote.path("symbol").asText("").toUpperCase(Locale.ROOT), quote);
+            }
+        } catch (Exception e) {
+            log.warn("Yahoo quote batch failed for KOSPI live prices, falling back to chart meta: {}", e.getMessage());
         }
 
         List<MarketItemResponse> items = new ArrayList<>();
@@ -214,10 +218,14 @@ public class StockRankingSnapshotService {
         double usdKrw = getUsdKrwCached();
 
         Map<String, JsonNode> quoteMap = new HashMap<>();
-        for (JsonNode quote : fetchYahooQuoteBatch(
-                snapshotItems.stream().map(MarketRankSnapshotItem::getSymbol).toList()
-        )) {
-            quoteMap.put(quote.path("symbol").asText("").toUpperCase(Locale.ROOT), quote);
+        try {
+            for (JsonNode quote : fetchYahooQuoteBatch(
+                    snapshotItems.stream().map(MarketRankSnapshotItem::getSymbol).toList()
+            )) {
+                quoteMap.put(quote.path("symbol").asText("").toUpperCase(Locale.ROOT), quote);
+            }
+        } catch (Exception e) {
+            log.warn("Yahoo quote batch failed for NASDAQ live prices, falling back to chart meta: {}", e.getMessage());
         }
 
         List<MarketItemResponse> items = new ArrayList<>();
