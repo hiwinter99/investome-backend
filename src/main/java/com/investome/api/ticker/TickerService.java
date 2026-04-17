@@ -16,6 +16,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class TickerService {
 
+    private static final String TICKER_CACHE_KEY = "investome:ticker-cache";
     private final ObjectMapper objectMapper;
 
     private volatile long cachedAt = 0L;
@@ -51,20 +52,10 @@ public class TickerService {
         TickerResponse.CoinTicker ripple = prev != null ? prev.getRipple() : null;
 
         try {
-            JsonNode crypto = fetchJsonNode(
-                    "https://api.coingecko.com/api/v3/simple/price" +
-                            "?ids=bitcoin,ethereum,ripple" +
-                            "&vs_currencies=krw" +
-                            "&include_24hr_change=true"
-            );
-
-            TickerResponse.CoinTicker newBitcoin = parseCoin(crypto.get("bitcoin"));
-            TickerResponse.CoinTicker newEthereum = parseCoin(crypto.get("ethereum"));
-            TickerResponse.CoinTicker newRipple = parseCoin(crypto.get("ripple"));
-
-            if (newBitcoin != null) bitcoin = newBitcoin;
-            if (newEthereum != null) ethereum = newEthereum;
-            if (newRipple != null) ripple = newRipple;
+            CryptoTickerBundle bundle = fetchCryptoTickers();
+            if (bundle.bitcoin() != null) bitcoin = bundle.bitcoin();
+            if (bundle.ethereum() != null) ethereum = bundle.ethereum();
+            if (bundle.ripple() != null) ripple = bundle.ripple();
         } catch (Exception ignored) {
         }
 
@@ -133,6 +124,71 @@ public class TickerService {
                         nasdaq != null ? nasdaq : new TickerResponse.IndexTicker(null, null)
                 )
         );
+    }
+
+    private CryptoTickerBundle fetchCryptoTickers() throws IOException, InterruptedException {
+        Exception lastError = null;
+
+        for (int attempt = 0; attempt < 2; attempt += 1) {
+            try {
+                JsonNode crypto = fetchJsonNode(
+                        "https://api.coingecko.com/api/v3/simple/price" +
+                                "?ids=bitcoin,ethereum,ripple" +
+                                "&vs_currencies=krw" +
+                                "&include_24hr_change=true"
+                );
+
+                return new CryptoTickerBundle(
+                        parseCoin(crypto.get("bitcoin")),
+                        parseCoin(crypto.get("ethereum")),
+                        parseCoin(crypto.get("ripple"))
+                );
+            } catch (Exception e) {
+                lastError = e;
+            }
+        }
+
+        try {
+            return fetchUpbitTickers();
+        } catch (Exception upbitError) {
+            if (lastError instanceof IOException io) throw io;
+            if (lastError instanceof InterruptedException ie) throw ie;
+            if (upbitError instanceof IOException io) throw io;
+            if (upbitError instanceof InterruptedException ie) throw ie;
+            throw new IOException("crypto ticker fetch failed", upbitError);
+        }
+    }
+
+    private CryptoTickerBundle fetchUpbitTickers() throws IOException, InterruptedException {
+        JsonNode items = fetchJsonNode(
+                "https://api.upbit.com/v1/ticker?markets=KRW-BTC,KRW-ETH,KRW-XRP"
+        );
+
+        if (!items.isArray()) {
+            throw new IOException("Upbit ticker payload is invalid");
+        }
+
+        TickerResponse.CoinTicker bitcoin = null;
+        TickerResponse.CoinTicker ethereum = null;
+        TickerResponse.CoinTicker ripple = null;
+
+        for (JsonNode item : items) {
+            String market = item.path("market").asText("");
+            Double price = asDouble(item.get("trade_price"));
+            Double signedChangeRate = asDouble(item.get("signed_change_rate"));
+            Double changePct = signedChangeRate != null ? signedChangeRate * 100.0 : null;
+            TickerResponse.CoinTicker ticker = new TickerResponse.CoinTicker(price, changePct);
+
+            switch (market) {
+                case "KRW-BTC" -> bitcoin = ticker;
+                case "KRW-ETH" -> ethereum = ticker;
+                case "KRW-XRP" -> ripple = ticker;
+                default -> {
+                }
+            }
+        }
+
+        return new CryptoTickerBundle(bitcoin, ethereum, ripple);
     }
 
     private TickerResponse.IndexTicker fetchYahooChartMeta(String symbol) throws IOException, InterruptedException {
@@ -212,5 +268,12 @@ public class TickerService {
         }
 
         return response.body();
+    }
+
+    private record CryptoTickerBundle(
+            TickerResponse.CoinTicker bitcoin,
+            TickerResponse.CoinTicker ethereum,
+            TickerResponse.CoinTicker ripple
+    ) {
     }
 }
