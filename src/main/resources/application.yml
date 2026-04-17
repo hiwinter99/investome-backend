@@ -27,3 +27,6 @@ kis:
   base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
   market-cap-tr-id: ${KIS_MARKET_CAP_TR_ID:FHPST01740000}
 
+fmp:
+  api-key: ${FMP_API_KEY:}
+

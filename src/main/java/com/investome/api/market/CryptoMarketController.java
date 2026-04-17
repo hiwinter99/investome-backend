@@ -14,6 +14,7 @@ public class CryptoMarketController {
 
     private final CryptoMarketService cryptoMarketService;
     private final StockMarketService stockMarketService;
+    private final StockRankingSnapshotService stockRankingSnapshotService;
 
     @GetMapping("/api/crypto-top30")
     public MarketListResponse getCryptoTop30() {
@@ -22,7 +23,7 @@ public class CryptoMarketController {
 
     @GetMapping("/api/stock-top30")
     public MarketListResponse getStockTop30(@RequestParam String market) {
-        return new MarketListResponse(stockMarketService.getTop30(market));
+        return new MarketListResponse(stockRankingSnapshotService.getTop30(market));
     }
 
     @GetMapping("/api/asset-quote")
