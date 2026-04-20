@@ -25,6 +25,12 @@ public class JwtTokenProvider {
     @Value("${jwt.access-token-expiration-ms}")
     private long accessTokenExpirationMs;
 
+    @Value("${jwt.refresh-token-expiration-ms}")
+    private long refreshTokenExpirationMs;
+
+    @Value("${jwt.keep-login-refresh-token-expiration-ms}")
+    private long keepLoginRefreshTokenExpirationMs;
+
     private SecretKey secretKey;
 
     @PostConstruct
@@ -44,7 +50,7 @@ public class JwtTokenProvider {
         this.secretKey = Keys.hmacShaKeyFor(secretKeyString.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String createToken(Long userId, String email, String role) {
+    public String createAccessToken(Long userId, String email, String role) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenExpirationMs);
 
@@ -58,10 +64,39 @@ public class JwtTokenProvider {
                 .compact();
     }
 
+    public String createRefreshToken(Long userId, boolean keepLogin) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + (keepLogin ? keepLoginRefreshTokenExpirationMs : refreshTokenExpirationMs));
+
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("type", "refresh")
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public long getAccessTokenExpirationMs() {
+        return accessTokenExpirationMs;
+    }
+
+    public long getRefreshTokenExpirationMs(boolean keepLogin) {
+        return keepLogin ? keepLoginRefreshTokenExpirationMs : refreshTokenExpirationMs;
+    }
+
     public Long getUserId(String token) {
         String subject = parseClaims(token).getSubject();
 
         return Long.parseLong(subject);
+    }
+
+    public void validateRefreshToken(String token) {
+        Claims claims = parseClaims(token);
+        String type = claims.get("type", String.class);
+        if (!"refresh".equals(type)) {
+            throw new IllegalArgumentException("Invalid refresh token");
+        }
     }
 
     public Authentication getAuthentication(String token) {

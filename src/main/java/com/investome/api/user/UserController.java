@@ -24,7 +24,18 @@ public class UserController {
     public LoginResponse login(@RequestBody LoginRequest request) {
         return userService.login(
                 request.getEmail(),
-                request.getPassword()
+                request.getPassword(),
+                request.isKeepLogin()
         );
+    }
+
+    @PostMapping("/refresh")
+    public LoginResponse refresh(@RequestBody RefreshTokenRequest request) {
+        return userService.refresh(request.getRefreshToken());
+    }
+
+    @PostMapping("/logout")
+    public void logout(@RequestBody RefreshTokenRequest request) {
+        userService.logout(request.getRefreshToken());
     }
 }

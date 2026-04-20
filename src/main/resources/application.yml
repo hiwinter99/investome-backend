@@ -19,7 +19,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:}
-  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:86400000}
+  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:7200000}
+  refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:86400000}
+  keep-login-refresh-token-expiration-ms: ${JWT_KEEP_LOGIN_REFRESH_TOKEN_EXPIRATION_MS:2592000000}
 
 kis:
   app-key: ${KIS_APP_KEY:}
