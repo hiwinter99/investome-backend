@@ -214,7 +214,7 @@ public class StockMarketService {
                     .symbol(item.getSymbol())
                     .iconUrl(item.getIconUrl())
                     .coinId("")
-                    .capKRW(item.getCapKRW())
+                    .capKRW(normalizeKospiMarketCap(item.getCapKRW()))
                     .priceKRW(item.getPriceKRW())
                     .changePct(item.getChangePct())
                     .build()).toList();
@@ -490,10 +490,20 @@ public class StockMarketService {
                 .symbol(symbol)
                 .iconUrl(buildLogo(pickStockDomain(symbol)))
                 .coinId("")
-                .capKRW(toLong(rawCap))
+                .capKRW(normalizeKospiMarketCap(toLong(rawCap)))
                 .priceKRW(toDouble(rawPrice))
                 .changePct(toDouble(rawPct))
                 .build();
+    }
+
+    private Long normalizeKospiMarketCap(Long rawCap) {
+        if (rawCap == null) {
+            return null;
+        }
+        if (rawCap >= 1_000_000_000_000L) {
+            return rawCap;
+        }
+        return rawCap * 100_000_000L;
     }
 
     private Map<String, KospiMaster> getKospiMasterMap() throws IOException {

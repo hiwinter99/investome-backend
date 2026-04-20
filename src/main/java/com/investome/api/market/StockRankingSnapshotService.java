@@ -238,7 +238,7 @@ public class StockRankingSnapshotService {
                     .symbol(snapshotItem.getSymbol())
                     .iconUrl(snapshotItem.getIconUrl())
                     .coinId("")
-                    .capKRW(snapshotItem.getCapKRW())
+                    .capKRW(normalizeKospiMarketCap(snapshotItem.getCapKRW()))
                     .priceKRW(price)
                     .changePct(changePct)
                     .build());
@@ -314,7 +314,9 @@ public class StockRankingSnapshotService {
 
             StockNameOverride master = masterMap.get(symbol);
             String rawName = firstNonEmpty(row, "hts_kor_isnm", "prdt_name", "stck_name");
-            Long capKRW = toLong(firstNonEmpty(row, "stck_avls", "data_valx", "mkt_cap"));
+            Long capKRW = normalizeKospiMarketCap(
+                    toLong(firstNonEmpty(row, "stck_avls", "data_valx", "mkt_cap"))
+            );
             Integer rank = toInteger(firstNonEmpty(row, "data_rank", "rank"));
 
             if (capKRW == null) {
@@ -642,7 +644,9 @@ public class StockRankingSnapshotService {
         entity.setName(item.getName());
         entity.setDisplayNameEN(item.getDisplayNameEN());
         entity.setIconUrl(item.getIconUrl());
-        entity.setCapKRW(item.getCapKRW());
+        entity.setCapKRW("KOSPI".equals(market)
+                ? normalizeKospiMarketCap(item.getCapKRW())
+                : item.getCapKRW());
         entity.setSource("KOSPI".equals(market) ? "KIS" : "FMP");
         return entity;
     }
@@ -657,11 +661,23 @@ public class StockRankingSnapshotService {
                         .symbol(item.getSymbol())
                         .iconUrl(item.getIconUrl())
                         .coinId("")
-                        .capKRW(item.getCapKRW())
+                        .capKRW("KOSPI".equals(item.getMarket())
+                                ? normalizeKospiMarketCap(item.getCapKRW())
+                                : item.getCapKRW())
                         .priceKRW(null)
                         .changePct(null)
                         .build())
                 .toList();
+    }
+
+    private Long normalizeKospiMarketCap(Long rawCap) {
+        if (rawCap == null) {
+            return null;
+        }
+        if (rawCap >= 1_000_000_000_000L) {
+            return rawCap;
+        }
+        return rawCap * 100_000_000L;
     }
 
     private String normalizeMarket(String market) {
