@@ -51,7 +51,7 @@ public class SecurityConfig {
                                 "/api/hello"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/board/**").permitAll()
-                        .requestMatchers("/api/watchlist/**", "/api/mypage/**").authenticated()
+                        .requestMatchers("/api/watchlist/**", "/api/mypage/**", "/api/notifications/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/board/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/board/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/board/**").authenticated()

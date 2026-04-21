@@ -1,5 +1,6 @@
 package com.investome.api.board;
 
+import com.investome.api.notification.NotificationService;
 import com.investome.api.user.User;
 import com.investome.api.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class BoardService {
     private final BoardCommentRepository boardCommentRepository;
     private final BoardPostLikeRepository boardPostLikeRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public List<BoardPostResponse> getPosts(Long currentUserId) {
         List<BoardPostListRow> posts = boardPostRepository.findPostListRows();
@@ -59,6 +61,9 @@ public class BoardService {
         post.setImageName(blankToNull(request.getImageName()));
 
         BoardPost saved = boardPostRepository.save(post);
+        if ("notice".equalsIgnoreCase(saved.getCategory())) {
+            notificationService.notifyNoticePost(userId, saved.getId(), saved.getTitle());
+        }
         return toResponse(saved, saved.getId(), userId);
     }
 
@@ -108,17 +113,28 @@ public class BoardService {
         comment.setAuthorNickname(user.getNickname());
         comment.setContent(normalizeRequired(request.getContent(), "댓글 내용을 입력해주세요."));
 
+        Long parentAuthorId = null;
         if (request.getParentCommentId() != null) {
             BoardComment parent = post.getComments().stream()
                     .filter(existing -> existing.getId().equals(request.getParentCommentId()))
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "답글 대상 댓글을 찾을 수 없습니다."));
 
+            parentAuthorId = parent.getAuthorId();
             comment.setParentComment(parent.getParentComment() != null ? parent.getParentComment() : parent);
         }
 
         BoardComment saved = boardCommentRepository.save(comment);
         post.getComments().add(saved);
+
+        if (request.getParentCommentId() != null) {
+            notificationService.notifyCommentReply(parentAuthorId, userId, postId, post.getTitle(), user.getNickname());
+            if (!post.getAuthorId().equals(userId) && !post.getAuthorId().equals(parentAuthorId)) {
+                notificationService.notifyPostComment(post.getAuthorId(), userId, postId, post.getTitle(), user.getNickname());
+            }
+        } else {
+            notificationService.notifyPostComment(post.getAuthorId(), userId, postId, post.getTitle(), user.getNickname());
+        }
 
         return toResponse(post, post.getId(), userId);
     }
