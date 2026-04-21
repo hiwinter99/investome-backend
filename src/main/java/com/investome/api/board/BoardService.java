@@ -37,7 +37,7 @@ public class BoardService {
     @Transactional
     public BoardPostResponse getPost(Long postId, boolean increaseView, Long currentUserId) {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
         if (increaseView) {
             post.setViews((post.getViews() == null ? 0L : post.getViews()) + 1);
@@ -54,7 +54,7 @@ public class BoardService {
         BoardPost post = new BoardPost();
         post.setAuthorId(user.getId());
         post.setAuthorNickname(user.getNickname());
-        post.setCategory(normalizeCategory(request.getCategory()));
+        post.setCategory(normalizeCategory(request.getCategory(), user));
         post.setTitle(normalizeRequired(request.getTitle(), "제목을 입력해주세요."));
         post.setContent(normalizeRequired(request.getContent(), "내용을 입력해주세요."));
         post.setImageData(blankToNull(request.getImageData()));
@@ -69,14 +69,17 @@ public class BoardService {
 
     @Transactional
     public BoardPostResponse updatePost(Long userId, Long postId, BoardCreateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
         if (!post.getAuthorId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 수정할 수 있습니다.");
         }
 
-        post.setCategory(normalizeCategory(request.getCategory()));
+        post.setCategory(normalizeCategory(request.getCategory(), user));
         post.setTitle(normalizeRequired(request.getTitle(), "제목을 입력해주세요."));
         post.setContent(normalizeRequired(request.getContent(), "내용을 입력해주세요."));
         post.setImageData(blankToNull(request.getImageData()));
@@ -88,7 +91,7 @@ public class BoardService {
     @Transactional
     public void deletePost(Long userId, Long postId) {
         BoardPost post = boardPostRepository.findById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
         if (!post.getAuthorId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 삭제할 수 있습니다.");
@@ -105,7 +108,7 @@ public class BoardService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
 
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
         BoardComment comment = new BoardComment();
         comment.setPost(post);
@@ -142,7 +145,7 @@ public class BoardService {
     @Transactional
     public BoardPostResponse deleteComment(Long userId, Long postId, Long commentId) {
         BoardComment comment = boardCommentRepository.findById(commentId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
 
         if (!comment.getPost().getId().equals(postId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 요청입니다.");
@@ -166,7 +169,7 @@ public class BoardService {
     @Transactional
     public BoardPostResponse toggleLike(Long userId, Long postId) {
         BoardPost post = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
         boardPostLikeRepository.findByPost_IdAndUserId(postId, userId)
                 .ifPresentOrElse(
@@ -182,7 +185,7 @@ public class BoardService {
         post.setLikes(boardPostLikeRepository.countByPost_Id(postId));
 
         BoardPost refreshed = boardPostRepository.findWithCommentsById(postId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
         return toResponse(refreshed, refreshed.getId(), userId);
     }
@@ -278,11 +281,20 @@ public class BoardService {
         return imageData != null && !imageData.isBlank();
     }
 
-    private String normalizeCategory(String category) {
+    private String normalizeCategory(String category, User user) {
         if (category == null || category.isBlank()) {
             return "free";
         }
-        return category.trim();
+
+        String normalized = category.trim().toLowerCase();
+        if ("notice".equals(normalized)) {
+            if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "공지글은 관리자만 작성할 수 있습니다.");
+            }
+            return "notice";
+        }
+
+        return "free";
     }
 
     private String normalizeRequired(String value, String message) {

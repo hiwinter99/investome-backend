@@ -32,7 +32,9 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
             left join p.comments c
             group by p.id, p.category, p.title, p.content, p.authorId, p.authorNickname,
                      p.imageData, p.views, p.likes, p.createdAt, p.updatedAt
-            order by p.id desc
+            order by
+                case when p.category = 'notice' then 0 else 1 end asc,
+                p.id desc
             """)
     List<BoardPostListRow> findPostListRows();
 
