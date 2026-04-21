@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -19,30 +20,33 @@ public class UserService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     public User signup(String email, String password, String nickname) {
+        String normalizedEmail = normalizeEmail(email);
+        String normalizedNickname = normalizeNickname(nickname);
 
-        userRepository.findByEmail(email).ifPresent(user -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "?대? 議댁옱?섎뒗 ?대찓?쇱엯?덈떎.");
+        userRepository.findByNormalizedEmail(normalizedEmail).ifPresent(user -> {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다.");
         });
 
-        userRepository.findByNickname(nickname).ifPresent(user -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "?대? 議댁옱?섎뒗 ?됰꽕?꾩엯?덈떎.");
+        userRepository.findByNickname(normalizedNickname).ifPresent(user -> {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
         });
 
         User user = new User();
-        user.setEmail(email);
+        user.setEmail(normalizedEmail);
         user.setPassword(passwordEncoder.encode(password));
-        user.setNickname(nickname);
+        user.setNickname(normalizedNickname);
 
         return userRepository.save(user);
     }
 
     public LoginResponse login(String email, String password, boolean keepLogin) {
+        String normalizedEmail = normalizeEmail(email);
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "?대찓?쇱씠 議댁옱?섏? ?딆뒿?덈떎."));
+        User user = userRepository.findByNormalizedEmail(normalizedEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "가입된 이메일이 없습니다."));
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "鍮꾨?踰덊샇媛 ??몄뒿?덈떎.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
         return issueLoginTokens(user, keepLogin);
@@ -50,26 +54,26 @@ public class UserService {
 
     public LoginResponse refresh(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "濡쒓렇?몄씠 留뚮즺?섏뿀?댁슂.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
         }
 
         RefreshToken saved = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "濡쒓렇?몄씠 留뚮즺?섏뿀?댁슂."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다."));
 
         if (saved.getExpiresAt().isBefore(LocalDateTime.now())) {
             refreshTokenRepository.delete(saved);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "濡쒓렇?몄씠 留뚮즺?섏뿀?댁슂.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
         }
 
         try {
             jwtTokenProvider.validateRefreshToken(refreshToken);
         } catch (Exception e) {
             refreshTokenRepository.delete(saved);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "濡쒓렇?몄씠 留뚮즺?섏뿀?댁슂.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
         }
 
         User user = userRepository.findById(saved.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "濡쒓렇?몄씠 留뚮즺?섏뿀?댁슂."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다."));
 
         refreshTokenRepository.delete(saved);
         return issueLoginTokens(user, saved.isKeepLogin());
@@ -109,5 +113,13 @@ public class UserService {
                 user.getNickname(),
                 user.getRole()
         );
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeNickname(String nickname) {
+        return nickname == null ? "" : nickname.trim();
     }
 }
