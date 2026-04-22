@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -13,7 +12,6 @@ import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class UserService {
 
     private final UserRepository userRepository;
@@ -85,12 +83,11 @@ public class UserService {
         if (refreshToken == null || refreshToken.isBlank()) {
             return;
         }
-        refreshTokenRepository.deleteAllByToken(refreshToken);
+        refreshTokenRepository.findByToken(refreshToken)
+                .ifPresent(refreshTokenRepository::delete);
     }
 
     private LoginResponse issueLoginTokens(User user, boolean keepLogin) {
-        refreshTokenRepository.deleteAllByUserId(user.getId());
-
         String accessToken = jwtTokenProvider.createAccessToken(
                 user.getId(),
                 user.getEmail(),

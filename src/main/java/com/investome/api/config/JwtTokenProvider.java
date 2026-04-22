@@ -15,6 +15,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -70,6 +71,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .id(UUID.randomUUID().toString())
                 .claim("type", "refresh")
                 .issuedAt(now)
                 .expiration(expiry)
