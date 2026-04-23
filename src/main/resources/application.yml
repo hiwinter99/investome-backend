@@ -32,3 +32,6 @@ kis:
 fmp:
   api-key: ${FMP_API_KEY:}
 
+turnstile:
+  secret-key: ${TURNSTILE_SECRET_KEY:}
+

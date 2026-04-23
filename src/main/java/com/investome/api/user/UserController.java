@@ -1,5 +1,9 @@
 package com.investome.api.user;
 
+import com.investome.api.security.ClientRequestResolver;
+import com.investome.api.security.RateLimitService;
+import com.investome.api.security.TurnstileService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,9 +13,16 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final ClientRequestResolver clientRequestResolver;
+    private final RateLimitService rateLimitService;
+    private final TurnstileService turnstileService;
 
     @PostMapping("/signup")
-    public String signup(@RequestBody SignupRequest request) {
+    public String signup(@RequestBody SignupRequest request, HttpServletRequest servletRequest) {
+        String clientIp = clientRequestResolver.resolveClientIp(servletRequest);
+        rateLimitService.checkSignupAllowed(clientIp);
+        turnstileService.verifyToken(request.getTurnstileToken(), clientIp);
+
         userService.signup(
                 request.getEmail(),
                 request.getPassword(),
@@ -21,7 +32,11 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public LoginResponse login(@RequestBody LoginRequest request) {
+    public LoginResponse login(@RequestBody LoginRequest request, HttpServletRequest servletRequest) {
+        String clientIp = clientRequestResolver.resolveClientIp(servletRequest);
+        rateLimitService.checkLoginAllowed(clientIp, request.getEmail());
+        turnstileService.verifyToken(request.getTurnstileToken(), clientIp);
+
         return userService.login(
                 request.getEmail(),
                 request.getPassword(),

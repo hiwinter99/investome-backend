@@ -1,6 +1,8 @@
 package com.investome.api.board;
 
 import com.investome.api.config.JwtTokenProvider;
+import com.investome.api.security.ClientRequestResolver;
+import com.investome.api.security.RateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +18,8 @@ public class BoardController {
 
     private final BoardService boardService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final ClientRequestResolver clientRequestResolver;
+    private final RateLimitService rateLimitService;
 
     @GetMapping("/posts")
     public List<BoardPostResponse> getPosts(HttpServletRequest request) {
@@ -36,7 +40,9 @@ public class BoardController {
             @RequestBody BoardCreateRequest request,
             HttpServletRequest httpRequest
     ) {
-        return boardService.createPost(extractUserId(httpRequest), request);
+        Long userId = extractUserId(httpRequest);
+        rateLimitService.checkBoardPostAllowed(clientRequestResolver.resolveClientIp(httpRequest), userId);
+        return boardService.createPost(userId, request);
     }
 
     @PutMapping("/posts/{postId}")
@@ -62,7 +68,9 @@ public class BoardController {
             @RequestBody BoardCommentCreateRequest request,
             HttpServletRequest httpRequest
     ) {
-        return boardService.addComment(extractUserId(httpRequest), postId, request);
+        Long userId = extractUserId(httpRequest);
+        rateLimitService.checkBoardCommentAllowed(clientRequestResolver.resolveClientIp(httpRequest), userId);
+        return boardService.addComment(userId, postId, request);
     }
 
     @DeleteMapping("/posts/{postId}/comments/{commentId}")

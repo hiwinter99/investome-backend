@@ -266,10 +266,10 @@ public class BoardService {
 
         return comments.stream()
                 .filter(comment -> comment.getParentComment() == null)
-                .sorted(Comparator.comparing(BoardComment::getCreatedAt).thenComparing(BoardComment::getId))
+                .sorted(Comparator.comparing(BoardComment::getCreatedAt).reversed().thenComparing(BoardComment::getId).reversed())
                 .flatMap(parent -> {
                     List<BoardComment> replies = repliesByParent.getOrDefault(parent.getId(), List.of()).stream()
-                            .sorted(Comparator.comparing(BoardComment::getCreatedAt).thenComparing(BoardComment::getId))
+                            .sorted(Comparator.comparing(BoardComment::getCreatedAt).reversed().thenComparing(BoardComment::getId).reversed())
                             .toList();
 
                     return Stream.concat(Stream.of(parent), replies.stream());
