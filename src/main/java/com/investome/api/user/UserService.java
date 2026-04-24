@@ -24,11 +24,11 @@ public class UserService {
         String normalizedNickname = normalizeNickname(nickname);
 
         userRepository.findByNormalizedEmail(normalizedEmail).ifPresent(user -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입되어 있는 이메일입니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "DUPLICATE_EMAIL");
         });
 
         userRepository.findByNickname(normalizedNickname).ifPresent(user -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "DUPLICATE_NICKNAME");
         });
 
         User user = new User();
@@ -43,10 +43,10 @@ public class UserService {
         String normalizedEmail = normalizeEmail(email);
 
         User user = userRepository.findByNormalizedEmail(normalizedEmail)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "가입된 이메일이 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "EMAIL_NOT_FOUND"));
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
         }
 
         return issueLoginTokens(user, keepLogin);
@@ -54,26 +54,26 @@ public class UserService {
 
     public LoginResponse refresh(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
         }
 
         RefreshToken saved = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN"));
 
         if (saved.getExpiresAt().isBefore(LocalDateTime.now())) {
             refreshTokenRepository.delete(saved);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
         }
 
         try {
             jwtTokenProvider.validateRefreshToken(refreshToken);
         } catch (Exception e) {
             refreshTokenRepository.delete(saved);
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
         }
 
         User user = userRepository.findById(saved.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 유효하지 않습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN"));
 
         refreshTokenRepository.delete(saved);
         return issueLoginTokens(user, saved.isKeepLogin());

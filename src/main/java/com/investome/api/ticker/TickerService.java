@@ -67,6 +67,14 @@ public class TickerService {
                 ? prev.getIndexes().getNASDAQ()
                 : new TickerResponse.IndexTicker(null, null);
 
+        TickerResponse.IndexTicker samsungElectronics = prev != null && prev.getStocks() != null
+                ? prev.getStocks().getSamsungElectronics()
+                : new TickerResponse.IndexTicker(null, null);
+
+        TickerResponse.IndexTicker skHynix = prev != null && prev.getStocks() != null
+                ? prev.getStocks().getSkHynix()
+                : new TickerResponse.IndexTicker(null, null);
+
         try {
             YahooQuoteResponse yahoo = fetchJson(
                     "https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5EKS11,%5EIXIC",
@@ -115,10 +123,62 @@ public class TickerService {
             }
         }
 
+        try {
+            YahooQuoteResponse yahooStocks = fetchJson(
+                    "https://query1.finance.yahoo.com/v7/finance/quote?symbols=005930.KS,000660.KS",
+                    YahooQuoteResponse.class
+            );
+
+            if (yahooStocks != null &&
+                    yahooStocks.getQuoteResponse() != null &&
+                    yahooStocks.getQuoteResponse().getResult() != null) {
+
+                for (YahooQuoteResponse.QuoteItem item : yahooStocks.getQuoteResponse().getResult()) {
+                    if ("005930.KS".equals(item.getSymbol())) {
+                        TickerResponse.IndexTicker parsed = new TickerResponse.IndexTicker(
+                                item.getRegularMarketPrice(),
+                                item.getRegularMarketChangePercent()
+                        );
+                        if (parsed.getPrice() != null) {
+                            samsungElectronics = parsed;
+                        }
+                    } else if ("000660.KS".equals(item.getSymbol())) {
+                        TickerResponse.IndexTicker parsed = new TickerResponse.IndexTicker(
+                                item.getRegularMarketPrice(),
+                                item.getRegularMarketChangePercent()
+                        );
+                        if (parsed.getPrice() != null) {
+                            skHynix = parsed;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // quote 실패 시 chart fallback 사용
+        }
+
+        if (samsungElectronics == null || samsungElectronics.getPrice() == null) {
+            try {
+                samsungElectronics = fetchYahooChartMeta("005930.KS");
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (skHynix == null || skHynix.getPrice() == null) {
+            try {
+                skHynix = fetchYahooChartMeta("000660.KS");
+            } catch (Exception ignored) {
+            }
+        }
+
         return new TickerResponse(
                 bitcoin,
                 ethereum,
                 ripple,
+                new TickerResponse.Stocks(
+                        samsungElectronics != null ? samsungElectronics : new TickerResponse.IndexTicker(null, null),
+                        skHynix != null ? skHynix : new TickerResponse.IndexTicker(null, null)
+                ),
                 new TickerResponse.Indexes(
                         kospi != null ? kospi : new TickerResponse.IndexTicker(null, null),
                         nasdaq != null ? nasdaq : new TickerResponse.IndexTicker(null, null)

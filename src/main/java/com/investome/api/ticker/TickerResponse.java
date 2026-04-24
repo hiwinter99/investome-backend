@@ -11,6 +11,7 @@ public class TickerResponse {
     private CoinTicker bitcoin;
     private CoinTicker ethereum;
     private CoinTicker ripple;
+    private Stocks stocks;
     private Indexes indexes;
 
     @Getter
@@ -27,6 +28,13 @@ public class TickerResponse {
     public static class Indexes {
         private IndexTicker KOSPI;
         private IndexTicker NASDAQ;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class Stocks {
+        private IndexTicker samsungElectronics;
+        private IndexTicker skHynix;
     }
 
     @Getter
