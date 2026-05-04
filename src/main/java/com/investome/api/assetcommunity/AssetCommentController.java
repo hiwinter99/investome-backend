@@ -42,6 +42,16 @@ public class AssetCommentController {
         return assetCommentService.createComment(userId, market, symbol, request);
     }
 
+    @DeleteMapping("/{commentId}")
+    public void deleteComment(
+            @PathVariable String market,
+            @PathVariable String symbol,
+            @PathVariable Long commentId,
+            HttpServletRequest httpRequest
+    ) {
+        assetCommentService.deleteComment(extractUserId(httpRequest), market, symbol, commentId);
+    }
+
     private Long extractUserId(HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
 

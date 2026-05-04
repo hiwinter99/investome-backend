@@ -64,6 +64,27 @@ public class AssetCommentService {
         );
     }
 
+    @Transactional
+    public void deleteComment(Long userId, String market, String symbol, Long commentId) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+
+        AssetComment comment = assetCommentRepository.findById(commentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "의견을 찾을 수 없습니다."));
+
+        String normalizedMarket = normalizeMarket(market);
+        String normalizedSymbol = normalizeSymbol(symbol);
+        if (!normalizedMarket.equals(comment.getMarket()) || !normalizedSymbol.equals(comment.getSymbol())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 요청입니다.");
+        }
+
+        if (!canManageComment(actor, comment.getAuthorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "의견을 삭제할 권한이 없습니다.");
+        }
+
+        assetCommentRepository.delete(comment);
+    }
+
     private String normalizeMarket(String market) {
         String normalized = normalizeRequired(market, "시장 정보가 올바르지 않습니다.");
         return normalized.toUpperCase(Locale.ROOT);
@@ -89,5 +110,9 @@ public class AssetCommentService {
 
     private String limit(String value, int maxLength) {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private boolean canManageComment(User actor, Long authorId) {
+        return actor != null && ("ADMIN".equalsIgnoreCase(actor.getRole()) || actor.getId().equals(authorId));
     }
 }

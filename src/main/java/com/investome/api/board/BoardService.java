@@ -90,11 +90,14 @@ public class BoardService {
 
     @Transactional
     public void deletePost(Long userId, Long postId) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+
         BoardPost post = boardPostRepository.findById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "게시글을 찾을 수 없습니다."));
 
-        if (!post.getAuthorId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 글만 삭제할 수 있습니다.");
+        if (!canManageContent(actor, post.getAuthorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "게시글을 삭제할 권한이 없습니다.");
         }
 
         boardPostLikeRepository.deleteAllByPost_Id(postId);
@@ -144,6 +147,9 @@ public class BoardService {
 
     @Transactional
     public BoardPostResponse deleteComment(Long userId, Long postId, Long commentId) {
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."));
+
         BoardComment comment = boardCommentRepository.findById(commentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."));
 
@@ -151,8 +157,8 @@ public class BoardService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 요청입니다.");
         }
 
-        if (!comment.getAuthorId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "본인 댓글만 삭제할 수 있습니다.");
+        if (!canManageContent(actor, comment.getAuthorId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "댓글을 삭제할 권한이 없습니다.");
         }
 
         if (comment.getParentComment() == null && boardCommentRepository.existsByParentComment_Id(commentId)) {
@@ -309,5 +315,9 @@ public class BoardService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean canManageContent(User actor, Long authorId) {
+        return actor != null && ("ADMIN".equalsIgnoreCase(actor.getRole()) || actor.getId().equals(authorId));
     }
 }
