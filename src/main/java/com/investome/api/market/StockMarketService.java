@@ -188,7 +188,7 @@ public class StockMarketService {
         CacheBucket bucket = getBucket(market);
         long now = System.currentTimeMillis();
 
-        if (!bucket.rankedItems.isEmpty() && now - bucket.rankAt < RANK_TTL_MS) {
+        if (!bucket.rankedItems.isEmpty() && now - bucket.rankAt < ("KOSPI".equals(market) ? PRICE_TTL_MS : RANK_TTL_MS)) {
             return bucket.rankedItems;
         }
 
