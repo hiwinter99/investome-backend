@@ -36,10 +36,19 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            if (request.getRequestURI().startsWith("/api/paper/")) {
+                                response.setStatus(401);
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.getWriter().write("{\"code\":\"AUTHENTICATION_REQUIRED\",\"message\":\"로그인이 필요합니다.\"}");
+                            } else new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED).commence(request, response, authException);
+                        })
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(request -> request.getDispatcherType() == jakarta.servlet.DispatcherType.ASYNC
+                                && request.getRequestURI().startsWith("/api/paper/")).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/paper/**").authenticated()
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/ticker",

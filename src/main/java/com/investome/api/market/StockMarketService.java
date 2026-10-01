@@ -89,6 +89,10 @@ public class StockMarketService {
             new StockBase("ORCL", "오라클", "Oracle Corporation", "oracle.com")
     );
 
+    public List<MarketItemResponse> getFreshKospiTop30() throws Exception {
+        return buildKospiRankSnapshot();
+    }
+
     public List<MarketItemResponse> getTop30(String market) {
         String normalizedMarket = String.valueOf(market).toUpperCase(Locale.ROOT);
         if (!normalizedMarket.equals("KOSPI") && !normalizedMarket.equals("NASDAQ")) {
@@ -418,6 +422,54 @@ public class StockMarketService {
         return rows.stream().limit(30).toList();
     }
 
+    /** Fresh KRX snapshot for paper executions; never use the ranking fallback/cache here. */
+    public long getCurrentKoreanPrice(String symbol) throws Exception {
+        if (symbol == null || !symbol.matches("[0-9]{6}")) throw new IllegalArgumentException("Invalid symbol");
+        String token = getKisAccessToken();
+        JsonNode json = http.fetchJsonNode(kisBaseUrl + "/uapi/domestic-stock/v1/quotations/inquire-price"
+                + "?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=" + symbol, Map.of(
+                "authorization", "Bearer " + token, "appkey", kisAppKey, "appsecret", kisAppSecret,
+                "tr_id", "FHKST01010100", "custtype", "P"));
+        if (!"0".equals(json.path("rt_cd").asText())) throw new IOException("KIS quote rejected");
+        long price = Long.parseLong(json.path("output").path("stck_prpr").asText());
+        if (price <= 0) throw new IOException("Invalid KIS price");
+        return price;
+    }
+
+    public record DailyCandle(String date, long open, long high, long low, long close, long volume) {}
+
+    public List<DailyCandle> getKoreanDailyChart(String symbol) throws Exception {
+        if (symbol == null || !symbol.matches("[0-9]{6}")) throw new IllegalArgumentException("Invalid symbol");
+        var today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+        var format = java.time.format.DateTimeFormatter.BASIC_ISO_DATE;
+        String token = getKisAccessToken();
+        JsonNode json = http.fetchJsonNode(kisBaseUrl + "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+                + "?FID_COND_MRKT_DIV_CODE=J&FID_INPUT_ISCD=" + symbol
+                + "&FID_INPUT_DATE_1=" + today.minusYears(1).format(format)
+                + "&FID_INPUT_DATE_2=" + today.format(format)
+                + "&FID_PERIOD_DIV_CODE=D&FID_ORG_ADJ_PRC=0", Map.of(
+                "authorization", "Bearer " + token, "appkey", kisAppKey, "appsecret", kisAppSecret,
+                "tr_id", "FHKST03010100", "custtype", "P"));
+        if (!"0".equals(json.path("rt_cd").asText()) || !json.path("output2").isArray())
+            throw new IOException("KIS chart rejected");
+        Map<String, DailyCandle> candles = new TreeMap<>();
+        for (JsonNode row : json.path("output2")) {
+            String day = row.path("stck_bsop_date").asText();
+            if (day.isBlank()) continue;
+            String date = java.time.LocalDate.parse(day, format).toString();
+            long open = Long.parseLong(row.path("stck_oprc").asText());
+            long high = Long.parseLong(row.path("stck_hgpr").asText());
+            long low = Long.parseLong(row.path("stck_lwpr").asText());
+            long close = Long.parseLong(row.path("stck_clpr").asText());
+            long volume = Long.parseLong(row.path("acml_vol").asText());
+            // Some suspended trading days have zero OHLC; do not draw artificial candles.
+            if (open <= 0 || close <= 0 || low <= 0 || high < Math.max(open, close)
+                    || low > Math.min(open, close) || volume < 0) continue;
+            candles.put(date, new DailyCandle(date, open, high, low, close, volume));
+        }
+        return List.copyOf(candles.values());
+    }
+
     private String getKisAccessToken() throws Exception {
         if (kisAppKey == null || kisAppKey.isBlank() || kisAppSecret == null || kisAppSecret.isBlank()) {
             throw new IllegalStateException("KIS credentials are missing");
@@ -516,15 +568,10 @@ public class StockMarketService {
     }
 
     private List<KospiMaster> loadKospiMaster() throws IOException {
-        Path path1 = Path.of("tmp", "kospi.csv");
-        Path path2 = Path.of("..", "tmp", "kospi.csv");
-
-        Path filePath = Files.exists(path1) ? path1 : path2;
-        if (!Files.exists(filePath)) {
-            throw new IOException("tmp/kospi.csv not found");
+        String text;
+        try (var input = new org.springframework.core.io.ClassPathResource("market/kospi.csv").getInputStream()) {
+            text = new String(input.readAllBytes(), Charset.forName("MS949"));
         }
-
-        String text = Files.readString(filePath, Charset.forName("MS949"));
         List<Map<String, String>> rows = parseCsv(text);
 
         Map<String, KospiMaster> overrides = Map.ofEntries(
