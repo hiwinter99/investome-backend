@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 public class CryptoMarketService {
 
     private final MarketHttpClient marketHttpClient;
+    private final CryptoRedisCache redisCache;
 
     private volatile long cachedAt = 0L;
     private volatile List<MarketItemResponse> cachedItems = List.of();
@@ -55,10 +56,17 @@ public class CryptoMarketService {
             new CoinSeed("bittensor", "Bittensor", "TAO")
     );
 
-    public List<MarketItemResponse> getTop30() {
+    public synchronized List<MarketItemResponse> getTop30() {
         long now = System.currentTimeMillis();
 
-        if (!cachedItems.isEmpty() && now - cachedAt < CACHE_MILLIS) {
+        CryptoRedisCache.Lookup lookup = redisCache.read();
+        if (!lookup.items().isEmpty()) {
+            cachedItems = lookup.items();
+            cachedAt = now;
+            return cachedItems;
+        }
+
+        if (!lookup.available() && !cachedItems.isEmpty() && now - cachedAt < CACHE_MILLIS) {
             return cachedItems;
         }
 
@@ -66,6 +74,7 @@ public class CryptoMarketService {
             List<MarketItemResponse> fresh = fetchTop30();
             cachedItems = fresh;
             cachedAt = now;
+            redisCache.write(fresh);
             return fresh;
         } catch (Exception e) {
             if (!cachedItems.isEmpty()) {

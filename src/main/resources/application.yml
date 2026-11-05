@@ -1,7 +1,15 @@
-﻿server:
+server:
   port: ${PORT:8080}
 
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: 1s
+      timeout: 1s
+      repositories:
+        enabled: false
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/investome}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -35,3 +43,8 @@ fmp:
 turnstile:
   secret-key: ${TURNSTILE_SECRET_KEY:}
 
+
+investome:
+  crypto:
+    redis-enabled: ${CRYPTO_REDIS_ENABLED:false}
+    cache-key: ${CRYPTO_CACHE_KEY:investome:spring:crypto:top30:v1}
